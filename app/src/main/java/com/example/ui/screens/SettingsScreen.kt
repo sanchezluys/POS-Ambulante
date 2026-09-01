@@ -427,7 +427,7 @@ fun SettingsScreen(
             value = storeName,
             onValueChange = { if (!isLocked) storeName = it },
             enabled = !isLocked,
-            label = { Text("Nombre del Negocio / Puesto *") },
+            label = { Text("Nombre del Negocio / Puesto * (Obligatorio)") },
             placeholder = { Text("Ej: Moda & Calzado Ambulante") },
             leadingIcon = {
               Icon(Icons.Default.Store, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -448,7 +448,7 @@ fun SettingsScreen(
             value = ownerName,
             onValueChange = { if (!isLocked) ownerName = it },
             enabled = !isLocked,
-            label = { Text("Nombre vendedor / Dueño") },
+            label = { Text("Nombre vendedor / Dueño (Opcional)") },
             placeholder = { Text("Ej: Carlos") },
             leadingIcon = {
               Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -469,7 +469,7 @@ fun SettingsScreen(
             value = ownerPhone,
             onValueChange = { if (!isLocked) ownerPhone = it },
             enabled = !isLocked,
-            label = { Text("WhatsApp / Teléfono") },
+            label = { Text("WhatsApp / Teléfono * (Obligatorio)") },
             placeholder = { Text("Ej: 3001234567") },
             leadingIcon = {
               Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -490,7 +490,7 @@ fun SettingsScreen(
             value = address,
             onValueChange = { if (!isLocked) address = it },
             enabled = !isLocked,
-            label = { Text("Dirección / Ubicación del Puesto") },
+            label = { Text("Dirección / Ubicación del Puesto * (Obligatorio)") },
             placeholder = { Text("Ej: Esquina Cra 7 con Calle 12, Puesto #4") },
             leadingIcon = {
               Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)

@@ -1,6 +1,14 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.ContactsContract
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +28,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Receipt
@@ -60,11 +70,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.example.data.model.SaleWithItems
 import com.example.data.model.StoreSettings
 import com.example.ui.theme.PosWhatsApp
 import com.example.ui.theme.PosWhatsAppDark
+import com.example.util.ContactUtils
 import com.example.util.FormatUtils
 import com.example.util.ReceiptUtils
 
@@ -83,6 +95,68 @@ fun ReceiptDialog(
 
   var whatsappPhone by remember {
     mutableStateOf(sale.customerPhone.ifBlank { "" })
+  }
+
+  // Contact Picker Launcher
+  val contactPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.StartActivityForResult()
+  ) { result ->
+    if (result.resultCode == Activity.RESULT_OK) {
+      val dataUri: Uri? = result.data?.data
+      if (dataUri != null) {
+        val contact = ContactUtils.getContactDetails(context, dataUri)
+        if (contact != null) {
+          whatsappPhone = contact.phone
+          Toast.makeText(
+            context,
+            "Contacto seleccionado: ${contact.name}",
+            Toast.LENGTH_SHORT
+          ).show()
+        } else {
+          Toast.makeText(context, "No se pudo leer el número del contacto", Toast.LENGTH_SHORT).show()
+        }
+      }
+    }
+  }
+
+  // Permission Request Launcher
+  val permissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted ->
+    if (isGranted) {
+      try {
+        contactPickerLauncher.launch(
+          Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+        )
+      } catch (e: Exception) {
+        Toast.makeText(context, "Error al abrir la agenda de contactos", Toast.LENGTH_SHORT).show()
+      }
+    } else {
+      Toast.makeText(
+        context,
+        "Permiso de acceso a contactos denegado.",
+        Toast.LENGTH_LONG
+      ).show()
+    }
+  }
+
+  val launchContactSelector: () -> Unit = {
+    val hasPermission = ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.READ_CONTACTS
+    ) == PackageManager.PERMISSION_GRANTED
+
+    if (hasPermission) {
+      try {
+        contactPickerLauncher.launch(
+          Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+        )
+      } catch (e: Exception) {
+        Toast.makeText(context, "Error al abrir la agenda de contactos", Toast.LENGTH_SHORT).show()
+      }
+    } else {
+      permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+    }
   }
 
   val receiptText = remember(saleWithItems, settings) {
@@ -407,6 +481,36 @@ fun ReceiptDialog(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // WhatsApp Phone Section with Agenda button
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "ENVIAR RECIBO POR WHATSAPP",
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          OutlinedButton(
+            onClick = launchContactSelector,
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.height(34.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Default.ContactPhone,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(15.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Buscar en Agenda", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+          }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
         // WhatsApp Phone Input
         OutlinedTextField(
           value = whatsappPhone,
@@ -416,8 +520,16 @@ fun ReceiptDialog(
           leadingIcon = {
             Icon(Icons.Default.Phone, contentDescription = null, tint = PosWhatsApp)
           },
+          trailingIcon = {
+            if (whatsappPhone.isNotBlank()) {
+              IconButton(onClick = { whatsappPhone = "" }) {
+                Icon(Icons.Default.Clear, contentDescription = "Limpiar", modifier = Modifier.size(18.dp))
+              }
+            }
+          },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
           singleLine = true,
+          shape = RoundedCornerShape(12.dp),
           modifier = Modifier
             .fillMaxWidth()
             .testTag("whatsapp_phone_input")

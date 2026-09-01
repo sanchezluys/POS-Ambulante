@@ -1,5 +1,14 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.ContactsContract
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,11 +34,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocalAtm
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Remove
@@ -44,6 +56,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,12 +71,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.data.model.SaleWithItems
 import com.example.ui.components.QuickTenderChip
 import com.example.ui.theme.PosPrimary
@@ -72,6 +87,7 @@ import com.example.ui.theme.PosSuccess
 import com.example.ui.theme.PosWhatsApp
 import com.example.ui.viewmodel.CartItem
 import com.example.ui.viewmodel.PosViewModel
+import com.example.util.ContactUtils
 import com.example.util.FormatUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +97,7 @@ fun CheckoutBottomSheet(
   onDismiss: () -> Unit,
   onSaleCompleted: (SaleWithItems) -> Unit
 ) {
+  val context = LocalContext.current
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val cartItems by viewModel.cartItems.collectAsState()
   val subtotal by viewModel.cartSubtotal.collectAsState()
@@ -97,6 +114,69 @@ fun CheckoutBottomSheet(
 
   var discountInput by remember { mutableStateOf(if (discount > 0) discount.toInt().toString() else "") }
   var cashInput by remember { mutableStateOf(if (cashTendered > 0) cashTendered.toInt().toString() else "") }
+
+  // Contact Picker Launcher
+  val contactPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.StartActivityForResult()
+  ) { result ->
+    if (result.resultCode == Activity.RESULT_OK) {
+      val dataUri: Uri? = result.data?.data
+      if (dataUri != null) {
+        val contact = ContactUtils.getContactDetails(context, dataUri)
+        if (contact != null) {
+          viewModel.setCustomerName(contact.name)
+          viewModel.setCustomerPhone(contact.phone)
+          Toast.makeText(
+            context,
+            "Contacto seleccionado: ${contact.name}",
+            Toast.LENGTH_SHORT
+          ).show()
+        } else {
+          Toast.makeText(context, "No se pudo leer el número del contacto", Toast.LENGTH_SHORT).show()
+        }
+      }
+    }
+  }
+
+  // Permission Request Launcher
+  val permissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { isGranted ->
+    if (isGranted) {
+      try {
+        contactPickerLauncher.launch(
+          Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+        )
+      } catch (e: Exception) {
+        Toast.makeText(context, "Error al abrir la agenda de contactos", Toast.LENGTH_SHORT).show()
+      }
+    } else {
+      Toast.makeText(
+        context,
+        "Permiso de acceso a contactos denegado. Puedes ingresar los datos manualmente.",
+        Toast.LENGTH_LONG
+      ).show()
+    }
+  }
+
+  val launchContactSelector: () -> Unit = {
+    val hasPermission = ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.READ_CONTACTS
+    ) == PackageManager.PERMISSION_GRANTED
+
+    if (hasPermission) {
+      try {
+        contactPickerLauncher.launch(
+          Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+        )
+      } catch (e: Exception) {
+        Toast.makeText(context, "Error al abrir la agenda de contactos", Toast.LENGTH_SHORT).show()
+      }
+    } else {
+      permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+    }
+  }
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -493,40 +573,128 @@ fun CheckoutBottomSheet(
       Spacer(modifier = Modifier.height(16.dp))
 
       // Customer Info for WhatsApp Receipt
-      Text(
-        text = "DATOS DEL CLIENTE (PARA RECIBO WHATSAPP)",
-        fontWeight = FontWeight.Bold,
-        fontSize = 12.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
-      Spacer(modifier = Modifier.height(8.dp))
-
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier
+          .fillMaxWidth()
+          .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
       ) {
-        OutlinedTextField(
-          value = customerName,
-          onValueChange = { viewModel.setCustomerName(it) },
-          label = { Text("Nombre (opcional)") },
-          leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-          singleLine = true,
-          modifier = Modifier
-            .weight(1f)
-            .testTag("customer_name_input")
-        )
+        Column(modifier = Modifier.padding(14.dp)) {
+          Text(
+            text = "DATOS DEL CLIENTE (RECIBO DIGITAL / WHATSAPP)",
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
 
-        OutlinedTextField(
-          value = customerPhone,
-          onValueChange = { viewModel.setCustomerPhone(it) },
-          label = { Text("WhatsApp (opcional)") },
-          leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, tint = PosWhatsApp) },
-          keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-          singleLine = true,
-          modifier = Modifier
-            .weight(1f)
-            .testTag("customer_phone_input")
-        )
+          Spacer(modifier = Modifier.height(8.dp))
+
+          // Quick Action Buttons: Agenda & Anonymous
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            OutlinedButton(
+              onClick = launchContactSelector,
+              shape = RoundedCornerShape(12.dp),
+              modifier = Modifier
+                .weight(1f)
+                .testTag("search_contacts_button")
+            ) {
+              Icon(
+                imageVector = Icons.Default.ContactPhone,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = "Buscar en Agenda",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+              )
+            }
+
+            OutlinedButton(
+              onClick = {
+                viewModel.setCustomerName("Cliente Mostrador")
+                viewModel.setCustomerPhone("")
+                Toast.makeText(context, "Modo venta anónima seleccionado", Toast.LENGTH_SHORT).show()
+              },
+              shape = RoundedCornerShape(12.dp),
+              modifier = Modifier
+                .weight(1f)
+                .testTag("anonymous_sale_button")
+            ) {
+              Icon(
+                imageVector = Icons.Default.PersonOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = "Venta Anónima",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          // Línea 1: Nombre del Cliente
+          OutlinedTextField(
+            value = customerName,
+            onValueChange = { viewModel.setCustomerName(it) },
+            label = { Text("Nombre del Cliente (Opcional)") },
+            placeholder = { Text("Ej: Juan Pérez o Cliente Mostrador") },
+            leadingIcon = {
+              Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            trailingIcon = {
+              if (customerName.isNotBlank()) {
+                IconButton(onClick = { viewModel.setCustomerName("") }) {
+                  Icon(Icons.Default.Clear, contentDescription = "Limpiar nombre", modifier = Modifier.size(18.dp))
+                }
+              }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("customer_name_input")
+          )
+
+          Spacer(modifier = Modifier.height(10.dp))
+
+          // Línea 2: WhatsApp / Teléfono del Cliente
+          OutlinedTextField(
+            value = customerPhone,
+            onValueChange = { viewModel.setCustomerPhone(it) },
+            label = { Text("WhatsApp / Teléfono (Opcional)") },
+            placeholder = { Text("Ej: 3001234567 o +57300...") },
+            leadingIcon = {
+              Icon(Icons.Default.Phone, contentDescription = null, tint = PosWhatsApp)
+            },
+            trailingIcon = {
+              if (customerPhone.isNotBlank()) {
+                IconButton(onClick = { viewModel.setCustomerPhone("") }) {
+                  Icon(Icons.Default.Clear, contentDescription = "Limpiar teléfono", modifier = Modifier.size(18.dp))
+                }
+              }
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("customer_phone_input")
+          )
+        }
       }
 
       Spacer(modifier = Modifier.height(20.dp))

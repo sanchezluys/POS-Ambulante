@@ -97,6 +97,11 @@ fun InitialSetupDialog(
   var thousandsSeparator by remember { mutableStateOf(currentSettings.thousandsSeparator.ifBlank { "." }) }
   var receiptFooter by remember { mutableStateOf(currentSettings.receiptFooter) }
   var logoUri by remember { mutableStateOf(currentSettings.logoUri) }
+  var hasAttemptedSave by remember { mutableStateOf(false) }
+
+  val isStoreNameError = hasAttemptedSave && storeName.trim().isBlank()
+  val isPhoneError = hasAttemptedSave && ownerPhone.trim().isBlank()
+  val isAddressError = hasAttemptedSave && address.trim().isBlank()
 
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickVisualMedia(),
@@ -301,15 +306,19 @@ fun InitialSetupDialog(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Nombre del Negocio / Puesto
+        // Nombre del Negocio / Puesto (Requerido)
         OutlinedTextField(
           value = storeName,
           onValueChange = { storeName = it },
-          label = { Text("Nombre del Negocio / Puesto *") },
+          label = { Text("Nombre del Negocio / Puesto * (Obligatorio)") },
           placeholder = { Text("Ej: Moda & Calzado Ambulante") },
           leadingIcon = {
-            Icon(Icons.Default.Storefront, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Storefront, contentDescription = null, tint = if (isStoreNameError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
           },
+          isError = isStoreNameError,
+          supportingText = if (isStoreNameError) {
+            { Text("El nombre del negocio es obligatorio", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
+          } else null,
           singleLine = true,
           shape = RoundedCornerShape(12.dp),
           modifier = Modifier
@@ -319,11 +328,11 @@ fun InitialSetupDialog(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Vendedor / Dueño (Línea 1)
+        // Vendedor / Dueño (Línea 1 - Opcional)
         OutlinedTextField(
           value = ownerName,
           onValueChange = { ownerName = it },
-          label = { Text("Vendedor / Dueño") },
+          label = { Text("Vendedor / Dueño (Opcional)") },
           placeholder = { Text("Ej: Carlos") },
           leadingIcon = {
             Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -337,15 +346,19 @@ fun InitialSetupDialog(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // WhatsApp / Teléfono (Línea 2)
+        // WhatsApp / Teléfono (Línea 2 - Requerido)
         OutlinedTextField(
           value = ownerPhone,
           onValueChange = { ownerPhone = it },
-          label = { Text("WhatsApp / Teléfono") },
+          label = { Text("WhatsApp / Teléfono * (Obligatorio)") },
           placeholder = { Text("Ej: 3001234567") },
           leadingIcon = {
-            Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.Phone, contentDescription = null, tint = if (isPhoneError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
           },
+          isError = isPhoneError,
+          supportingText = if (isPhoneError) {
+            { Text("El número de WhatsApp/Teléfono es obligatorio", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
+          } else null,
           singleLine = true,
           shape = RoundedCornerShape(12.dp),
           modifier = Modifier
@@ -355,15 +368,19 @@ fun InitialSetupDialog(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Dirección / Ubicación
+        // Dirección / Ubicación (Requerido)
         OutlinedTextField(
           value = address,
           onValueChange = { address = it },
-          label = { Text("Dirección / Ubicación del Puesto") },
+          label = { Text("Dirección / Ubicación del Puesto * (Obligatorio)") },
           placeholder = { Text("Ej: Esquina Cra 7 con Calle 12, Puesto #4") },
           leadingIcon = {
-            Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = if (isAddressError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
           },
+          isError = isAddressError,
+          supportingText = if (isAddressError) {
+            { Text("La dirección o ubicación es obligatoria", color = MaterialTheme.colorScheme.error, fontSize = 11.sp) }
+          } else null,
           singleLine = true,
           shape = RoundedCornerShape(12.dp),
           modifier = Modifier
@@ -643,8 +660,18 @@ fun InitialSetupDialog(
         // Save & Start Button
         Button(
           onClick = {
+            hasAttemptedSave = true
+            if (storeName.trim().isBlank() || ownerPhone.trim().isBlank() || address.trim().isBlank()) {
+              Toast.makeText(
+                context,
+                "Por favor completa los campos obligatorios (*)",
+                Toast.LENGTH_LONG
+              ).show()
+              return@Button
+            }
+
             val updated = currentSettings.copy(
-              storeName = storeName.ifBlank { "Mi Negocio Ambulante" },
+              storeName = storeName.trim(),
               ownerName = ownerName.trim().ifBlank { "Vendedor" },
               ownerPhone = ownerPhone.trim(),
               address = address.trim(),
