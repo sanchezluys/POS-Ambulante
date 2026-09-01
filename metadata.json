@@ -1,0 +1,7 @@
+{
+  "name": "POS Ambulante",
+  "description": "Sistema POS offline minimalista para venta de ropa y calzado con control de inventario, reportes diarios y recibos digitales por WhatsApp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
